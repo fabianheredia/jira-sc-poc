@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Jira Dashboard – IA</title>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root{
+      --bg:#0b1220;
+      --panel:#121a2b;
+      --panel2:#0f1730;
+      --border:#1f2b4d;
+      --text:#e8eefc;
+      --muted:#a7b1c6;
+      --blue:#3B82F6;
+      --green:#22C55E;
+      --slate:#94A3B8;
+    }
+
+    *{ box-sizing:border-box; font-family: Arial, system-ui, -apple-system, Segoe UI, Roboto; }
+    body{ margin:0; background:var(--bg); color:var(--text); padding:18px; }
+
+    h1,h2,h3{ margin:0 0 10px 0; }
+    h2{ margin-bottom:14px; }
+
+    .toolbar{
+      display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+      background:var(--panel); border:1px solid var(--border);
+      padding:12px; border-radius:12px; margin-bottom:14px;
+    }
+    label{ color:var(--muted); font-size:14px; }
+    select, button{
+      padding:8px 10px; border-radius:10px; border:1px solid var(--border);
+      background:var(--panel2); color:var(--text);
+    }
+    button{ background:var(--blue); border:none; color:#061023; font-weight:700; cursor:pointer; }
+    button:hover{ filter:brightness(1.05); }
+
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap:14px;
+    }
+    @media (max-width: 980px){
+      .grid{ grid-template-columns: 1fr; }
+    }
+
+    .card{
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:12px;
+    }
+
+    /* Contenedor dedicado por Chart.js (recomendado) */
+    .chart-container{
+      position: relative;         /* requerido para resize correcto [1](https://www.chartjs.org/docs/latest/configuration/responsive.html) */
+      width: 100%;
+      height: 300px;              /* default */
+      margin-top: 8px;
+      background:#ffffff;
+      border-radius:10px;
+      overflow:hidden;            /* evita que el canvas “se salga” */
+    }
+    /* Alturas específicas */
+    .h-260{ height:260px; }
+    .h-300{ height:300px; }
+    .h-340{ height:340px; }
+    .h-380{ height:380px; }
+    .h-420{ height:420px; }
+
+    .summary{
+      display:flex; gap:18px; flex-wrap:wrap; color:var(--muted); font-size:14px;
+      padding:6px 0 0 0;
+    }
+    .pill{
+      background:var(--panel2);
+      border:1px solid var(--border);
+      border-radius:999px;
+      padding:6px 10px;
+    }
+  </style>
+</head>
+
+<body>
+  <h2>📊 Jira Dashboard – IA</h2>
+
+  <div class="toolbar">
+    <label>Sprint:</label>
+    <select id="sprintSelect"></select>
+
+    <label>Usuario:</label>
+    <select id="userSelect"></select>
+
+    <button onclick="loadDashboard()">Actualizar</button>
+
+    <div class="summary" id="summaryPills"></div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h3>🔥 Burndown Equipo</h3>
+      <div class="chart-container h-300">
+        <canvas id="teamChart"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>🔥 Burndown Usuario</h3>
+      <div class="chart-container h-300">
+        <canvas id="userChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid" style="margin-top:14px;">
+    <div class="card">
+      <h3>📊 Comprometidas vs Done (Top usuarios)</h3>
+      <div class="chart-container h-420">
+        <canvas id="barChart"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>📊 Historias (Parent) – Top</h3>
+      <div class="chart-container h-420">
+        <canvas id="parentChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px;">
+    <h3>📊 Épicas – Top</h3>
+    <div class="chart-container h-340">
+      <canvas id="epicChart"></canvas>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
+ 
