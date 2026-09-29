@@ -4,9 +4,16 @@ import dotenv from "dotenv";
 import fetch from "node-fetch";
 import https from "https";
 
-import { isDone, sprintLabelsFrom } from "./src/jira/fields.js";
+import { cargarConfiguracion, sprintPorId } from "./src/config.js";
+import { normalizarSubtask, clasificarLote } from "./src/domain/clasificacion.js";
+import {
+  burndownSprint,
+  resumenPorArquitecto,
+  parentRows,
+  epicRows,
+} from "./src/domain/metricas.js";
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const app = express();
 app.use(cors());
@@ -17,6 +24,17 @@ const PORT = Number(process.env.PORT || 3000);
 const JIRA_URL = process.env.JIRA_URL;
 const JIRA_TOKEN = process.env.JIRA_TOKEN;
 const DEFAULT_PROJECT = process.env.JIRA_PROJECT || "IA";
+
+// ===== Configuración F-00: falla explícita al arrancar si sprints.yaml o
+// team.yaml están mal formados. Es un error del operador, no del dato de Jira.
+let sprints, team;
+try {
+  ({ sprints, team } = cargarConfiguracion());
+  console.log(`Configuración cargada: ${sprints.length} sprints, ${team.lista.length} arquitectos.`);
+} catch (e) {
+  console.error("No se pudo cargar la configuración (config/sprints.yaml, config/team.yaml):", e.message);
+  process.exit(1);
+}
 
 // SSL corporativo (self-signed)
 const agent = new https.Agent({ rejectUnauthorized: false });
@@ -54,10 +72,6 @@ if (!Number.isNaN(d)) return Math.min(Math.max(d - Date.now(), 1000), 60000);
 
 return fallbackMs;
 }
-
-// isDone y sprintLabelsFrom se movieron VERBATIM a src/jira/fields.js para que
-// la capa de dominio use la misma definición y no exista una copia divergente.
-// Se importan al inicio de este archivo.
 
 // ===== Jira client with bounded retry =====
 async function jiraGetJson(url, { max429Retries = 2 } = {}) {
@@ -195,10 +209,164 @@ await sleep(900);
 return parentMap;
 }
 
-// ===== Metrics builders =====
-function buildMetaFromIssues(issues) {
-const sprints = new Set();
-const users = new Set();
+// ===== Bulk fetch epics to get their assignee (R-12 necesita comparar contra
+// el assignee de la ÉPICA, no de la historia intermedia) =====
+async function fetchEpics(epicKeys) {
+const unique = Array.from(new Set(epicKeys)).filter(Boolean);
+if (unique.length === 0) return new Map();
 
-for (const it of issues) {
-const u
+const epicMap = new Map();
+
+const chunkSize = 40;
+for (let i = 0; i < unique.length; i += chunkSize) {
+const chunk = unique.slice(i, i + chunkSize);
+const jql = `key in (${chunk.join(",")})`;
+
+const { issues } = await jiraSearchPaginated({
+jql,
+fields: ["summary", "assignee"],
+pageSize: 50,
+maxPages: 2,
+});
+
+for (const e of issues) {
+epicMap.set(e.key, {
+key: e.key,
+summary: e.fields?.summary || "",
+assigneeKey: e.fields?.assignee?.key || null,
+});
+}
+
+await sleep(900);
+}
+
+return epicMap;
+}
+
+// ===== Carga y clasificación de sub-tasks (F-01), con cache corto para no
+// martillar Jira en cada cambio de filtro del dashboard =====
+const SUBTASK_FIELDS = ["summary", "status", "assignee", "labels", "resolutiondate", "parent"];
+const CACHE_TTL_MS = 120_000;
+let subtasksCache = { at: 0, data: null };
+
+function buildSubtaskJql() {
+return process.env.JIRA_SUBTASK_JQL || `project = "${DEFAULT_PROJECT}" AND issuetype = Sub-task ORDER BY created ASC`;
+}
+
+async function loadClasificadas({ forceRefresh = false } = {}) {
+const fresh = !forceRefresh && subtasksCache.data && Date.now() - subtasksCache.at < CACHE_TTL_MS;
+if (fresh) return subtasksCache.data;
+
+const { epicLinkId } = await loadFieldMetadataOnce();
+
+const { issues, total } = await jiraSearchPaginated({
+jql: buildSubtaskJql(),
+fields: SUBTASK_FIELDS,
+pageSize: 50,
+maxPages: 5, // D-04: techo de 250 sub-tasks; counts.truncated avisa si se alcanza
+});
+
+const parentKeys = issues.map((it) => it.fields?.parent?.key).filter(Boolean);
+const historias = await fetchParents(parentKeys, epicLinkId);
+
+const epicKeys = [...historias.values()].map((h) => h.epicKey).filter(Boolean);
+const epicas = await fetchEpics(epicKeys);
+
+const clasificadas = clasificarLote(
+issues.map((it) => normalizarSubtask(it, { historias, epicas })),
+{ sprints, team }
+);
+
+const data = { clasificadas, loaded: issues.length, total };
+subtasksCache = { at: Date.now(), data };
+return data;
+}
+
+// ===== API =====
+
+// F-00: sprints y equipo salen de la configuración, no de un escaneo de Jira.
+app.get("/api/meta", (_req, res) => {
+res.json({
+ok: true,
+meta: {
+sprints: sprints.map((s) => s.id),
+users: team.lista.map((a) => a.nombre),
+},
+});
+});
+
+app.get("/api/dashboard", async (req, res) => {
+const sprintParam = String(req.query.sprint || "ALL");
+const userParam = String(req.query.user || "ALL");
+const forceRefresh = req.query.refresh === "1";
+
+let loadResult;
+try {
+loadResult = await loadClasificadas({ forceRefresh });
+} catch (e) {
+// F-08: Jira caído o 429 agotado no debe presentarse como métricas parciales.
+console.error("Error consultando Jira:", e);
+res.status(502).json({ ok: false, error: e.message });
+return;
+}
+
+const { clasificadas: todas, loaded, total } = loadResult;
+
+const sprintObjetivo = sprintParam === "ALL" ? null : sprintPorId(sprints, sprintParam);
+const sprintIds = sprintParam === "ALL" ? sprints.map((s) => s.id) : sprintObjetivo ? [sprintObjetivo.id] : [];
+
+const arquitectoObjetivo = userParam === "ALL" ? null : team.lista.find((a) => a.nombre === userParam) || null;
+
+const porUsuario = arquitectoObjetivo ? todas.filter((c) => c.assigneeKey === arquitectoObjetivo.key) : todas;
+
+// Sub-tasks con algo que decir sobre el/los sprint(s) seleccionados: las
+// comprometidas y las no planificadas que resolvieron dentro de su rango.
+const relevantes =
+sprintParam === "ALL"
+? porUsuario
+: sprintObjetivo
+? porUsuario.filter(
+(c) => c.sprintsComprometidos.includes(sprintObjetivo.id) || c.sprintCumplido === sprintObjetivo.id
+)
+: []; // sprint pedido no está en config/sprints.yaml (R-19): no rompe, no hay nada que mostrar
+
+const teamBurndown = sprintObjetivo ? burndownSprint(todas, sprintObjetivo) : { labels: [], remaining: [] };
+
+const userBurndown =
+arquitectoObjetivo && sprintObjetivo ? burndownSprint(porUsuario, sprintObjetivo) : { labels: [], remaining: [] };
+
+const resumen = resumenPorArquitecto(todas, sprintIds, { team });
+
+res.json({
+ok: true,
+filters: { sprint: sprintParam, user: userParam },
+counts: {
+allIssuesLoaded: loaded,
+filteredIssues: relevantes.length,
+totalReportedByJira: total,
+truncated: loaded < total,
+},
+// D-04 / F-08: ningún recorte silencioso.
+warning:
+loaded < total
+? `Datos incompletos: se cargaron ${loaded} de ${total} sub-tasks reportadas por Jira.`
+: null,
+charts: {
+teamBurndown,
+userBurndown,
+barCommittedVsDone: {
+labels: resumen.map((r) => r.nombre),
+committed: resumen.map((r) => r.comprometidas),
+done: resumen.map((r) => r.cumplidas),
+},
+},
+groups: {
+parentRows: parentRows(relevantes),
+epicRows: epicRows(relevantes),
+},
+});
+});
+
+app.listen(PORT, () => {
+console.log(`Servidor escuchando en http://localhost:${PORT}`);
+});
