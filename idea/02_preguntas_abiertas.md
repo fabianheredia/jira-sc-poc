@@ -102,13 +102,14 @@
 | **Q-42** | ¿El *cycle time* se cuenta en días hábiles o calendario? | ✅ RESPONDIDA | **Días hábiles**, consistente con el eje X del burndown (Q-03) |
 | **Q-43** | Sub-task con label `S1` resuelta **después** de que S1 cerró, sin re-etiquetar a `S2` | ✅ RESPONDIDA | **Atribución por fecha, con bolsa de "resuelto fuera de sprint".** Solo cuenta como cumplida el sprint en cuyo rango cae `resolutiondate`. Lo resuelto fuera de todo rango **no desaparece**: se acumula en una categoría visible `fuera de sprint` |
 | **Q-44** | ¿El burndown lleva línea de referencia? | ✅ RESPONDIDA | **Línea ideal recta + curva promedio histórico** del equipo en sprints anteriores. Dos referencias sobre la curva real |
+| **Q-46** | Una sub-task planificada que se resuelve dentro del rango de un sprint que **nunca comprometió** (prometió `S1`, se resolvió durante `S2` sin llevar el label `S2`): ¿se acredita a `S2` o va a la bolsa "fuera de sprint"? | 🟡 **DECIDIDA POR INVARIANTE — confirmar** | **Va a la bolsa "fuera de sprint"**; no se acredita a `S2`. **No es una elección de gusto:** acreditarla a `S2` le daría a `S2` una cumplida que no está entre sus comprometidas, y su cumplimiento pasaría del 100 %, que es imposible por definición. El trabajo **no planificado** sí se atribuye por pura fecha, porque no tiene compromiso que contrastar y queda fuera del denominador. Implementado y cubierto por prueba de invariante |
 
 ### Bloque A — cerrado el 2026-09-28
 
 Q-01 ✅ Q-02 ✅ Q-03 ✅ Q-04 ✅ Q-05 ✅ Q-10 ✅ Q-11 ✅ Q-12 ✅ Q-14 ✅ Q-15 ✅ Q-16 ✅ Q-18 ✅
-Q-35 ✅ Q-36 ✅ Q-37 ✅ Q-38 ✅ Q-39 ✅ Q-40 ✅ Q-41 ✅ Q-42 ✅ Q-43 ✅ Q-44 ✅
+Q-35 ✅ Q-36 ✅ Q-37 ✅ Q-38 ✅ Q-39 ✅ Q-40 ✅ Q-41 ✅ Q-42 ✅ Q-43 ✅ Q-44 ✅ Q-46 🟡
 
-**22 preguntas del bloque A respondidas.** Ninguna regla de negocio del Gherkin proviene de un
+**22 preguntas del bloque A respondidas por el sponsor, más `Q-46` decidida por invariante y pendiente de confirmar.** Ninguna regla de negocio del Gherkin proviene de un
 supuesto: todas tienen una fila en esta tabla con fecha y respuesta del sponsor.
 
 ### Lo que sigue abierto y por qué no bloquea

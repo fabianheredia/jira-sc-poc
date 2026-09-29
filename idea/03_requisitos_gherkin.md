@@ -34,8 +34,8 @@
 | **R-02** | El sprint se identifica por un **label** de la sub-task con forma `S<n>` (regex `/^s\d+$/i`, normalizado a minúscula). No se usa el campo Sprint de Jira | Q-02, código `server.js:60` |
 | **R-03** | Una sub-task está **comprometida** en **cada** sprint cuyo label lleve. Dos labels = dos compromisos | Q-10 |
 | **R-04** | Una sub-task está **completada** cuando `statusCategory === "Done"` | Q-05, código `server.js:56` |
-| **R-05** | Una sub-task se **acredita como cumplida** al sprint en cuyo rango de fechas cae su `resolutiondate` | Q-43 |
-| **R-06** | Una sub-task completada cuya `resolutiondate` no cae en **ningún** sprint configurado va a la bolsa **`fuera de sprint`**. No desaparece | Q-43 |
+| **R-05** | Una sub-task **planificada** se acredita como cumplida al sprint en cuyo rango cae su `resolutiondate`, **siempre que ese sprint fuera uno de los que tenía comprometidos**. El trabajo **no planificado** se atribuye por fecha sin más condición | Q-43, **Q-46** |
+| **R-06** | Una sub-task completada que no se pueda acreditar según R-05 va a la bolsa **`fuera de sprint`**. No desaparece | Q-43, **Q-46** |
 | **R-07** | **Carry-over:** una sub-task con labels `S1` y `S2` cuenta como no cumplida en S1 y comprometida de nuevo en S2. Penaliza el cumplimiento de S1 | Q-10 |
 | **R-08** | Las fechas de los sprints viven en **`config/sprints.yaml`**, con campos `id`, `nombre`, `inicio`, `fin` | Q-02, Q-36, Q-39 |
 | **R-09** | El eje temporal son **días hábiles (lunes a viernes)**. Sin gestión de feriados en el MVP | Q-03 |
@@ -66,6 +66,13 @@ cycle_time(arq, sprint)   = promedio, en días hábiles, de
 carry_over(arq, sprint)   = comprometidas(arq, sprint) que además llevan el label del
                             sprint siguiente ÷ comprometidas(arq, sprint)                      — R-07
 ```
+
+> **Invariante que obliga al matiz de R-05 (`Q-46`).** Si el cumplimiento se acreditara por fecha
+> **sin** exigir que el sprint estuviera comprometido, una sub-task que prometió `S1` y se resolvió
+> durante `S2` sin llevar el label `S2` se sumaría a las cumplidas de `S2` sin estar entre sus
+> comprometidas. `S2` tendría más cumplidas que comprometidas y su cumplimiento pasaría del 100 %,
+> que es imposible por definición. Con el matiz, esa sub-task no se acredita a ningún sprint y va a
+> la bolsa `fuera de sprint` — que es exactamente lo que el escenario de `ST-105` describe.
 
 ---
 
@@ -116,11 +123,19 @@ regla, incluidos los bordes.
 | `ST-102` | HU-11 | `arq.ana` | `S1`,`S2` | Done | 2026-08-20 | carry-over de S1 a S2 |
 | `ST-103` | HU-12 | `arq.ana` | `S1` | En curso | — | comprometida sin cumplir |
 | `ST-104` | HU-12 | `arq.beto` | `S1` | Done | 2026-08-12 | **apoyo** (épica de Ana) |
-| `ST-105` | HU-11 | `arq.ana` | `S1` | Done | 2026-08-18 | resuelta **fuera** del rango de S1 |
+| `ST-105` | HU-11 | `arq.ana` | `S1` | Done | 2026-08-18 | resuelta dentro de S2, que **nunca comprometió** |
 | `ST-201` | HU-21 | `arq.beto` | `S2` | Done | 2026-08-21 | caso normal, propia |
 | `ST-202` | HU-21 | `arq.beto` | *(ninguno)* | Done | 2026-08-25 | **no planificado** |
 | `ST-301` | HU-31 | `arq.caro` | `S2` | Done | 2026-08-26 | **apoyo** (épica del líder) |
 | `ST-901` | HU-11 | `arq.ana` | `S9` | Done | 2026-09-15 | sprint **no configurado** |
+
+**Bordes adicionales** — no forman parte del juego principal, pero R-12 y F-00 los deben cubrir:
+
+| clave | situación | qué debe pasar |
+|---|---|---|
+| `HU-51` | historia **sin épica** | su sub-task queda "sin iniciativa", con el motivo declarado |
+| `EPIC-40` | épica **sin responsable** | su sub-task queda "sin iniciativa"; el hueco se reporta, no se atribuye |
+| `ST-777` | assignee `externo.zoe`, ausente de `config/team.yaml` | no aparece en la vista de equipo ni altera el promedio |
 
 ---
 
@@ -225,16 +240,25 @@ Característica: Clasificación de sub-tasks por sprint, cumplimiento y planific
     Entonces "ST-102" se marca como arrastrada desde "s1"
     Y suma al carry-over rate de "Ana Rivas" en "s1"
 
-  Escenario: Sub-task resuelta fuera del rango de todo sprint
+  Escenario: Sub-task resuelta en un sprint que nunca comprometió
     Dado que la sub-task "ST-105" lleva únicamente el label "S1"
     Y que su "resolutiondate" es "2026-08-18"
     Y que "s1" terminó el "2026-08-14"
+    Y que el "2026-08-18" cae dentro del rango de "s2"
     Y que "ST-105" no lleva el label "S2"
     Cuando se calcula el cumplimiento
     Entonces "ST-105" cuenta como NO cumplida en "s1"
+    Y no se acredita como cumplida en "s2", porque nunca comprometió "s2"
     Y no cuenta como cumplida en ningún sprint
     Y aparece en la categoría visible "fuera de sprint"
     Y la categoría "fuera de sprint" es consultable desde la interfaz
+
+  Escenario: Una sub-task completada fuera del rango de todo sprint configurado
+    Dado que la sub-task "ST-901" lleva el label "S9", que no está configurado
+    Y que su "resolutiondate" es "2026-09-15"
+    Y que ese día no cae en el rango de ningún sprint configurado
+    Cuando se calcula el cumplimiento
+    Entonces "ST-901" aparece en la categoría "fuera de sprint"
 
   Escenario: Sub-task sin label de sprint es trabajo no planificado
     Dado que la sub-task "ST-202" no lleva ningún label de sprint

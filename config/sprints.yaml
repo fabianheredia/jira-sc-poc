@@ -1,0 +1,30 @@
+# Fechas de los sprints — F-00 / R-08 (Q-02, Q-36, Q-39)
+#
+# El sprint NO vive en el campo Sprint de Jira: se identifica por un label `S<n>`
+# en la sub-task (R-02). Este archivo es la única fuente de sus fechas.
+#
+# Reglas:
+#   - `id` debe coincidir con el label en minúscula: label "S1" -> id "s1".
+#   - `inicio` y `fin` son inclusive y se escriben entre comillas (YYYY-MM-DD).
+#   - El eje temporal son días hábiles de lunes a viernes; los feriados NO se
+#     gestionan en el MVP (R-09 / Q-03).
+#   - Si una sub-task lleva un label que no está aquí, el dashboard NO falla:
+#     lo muestra con aviso y sin burndown (R-19 / Q-39).
+#
+# MANTENIMIENTO MANUAL: al abrir un sprint nuevo hay que añadirlo aquí.
+
+sprints:
+  - id: s1
+    nombre: Sprint 1
+    inicio: "2026-08-03"
+    fin: "2026-08-14"
+
+  - id: s2
+    nombre: Sprint 2
+    inicio: "2026-08-17"
+    fin: "2026-08-28"
+
+  - id: s3
+    nombre: Sprint 3
+    inicio: "2026-08-31"
+    fin: "2026-09-11"

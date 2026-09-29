@@ -4,6 +4,8 @@ import dotenv from "dotenv";
 import fetch from "node-fetch";
 import https from "https";
 
+import { isDone, sprintLabelsFrom } from "./src/jira/fields.js";
+
 dotenv.config();
 
 const app = express();
@@ -53,14 +55,9 @@ if (!Number.isNaN(d)) return Math.min(Math.max(d - Date.now(), 1000), 60000);
 return fallbackMs;
 }
 
-function isDone(issue) {
-return issue?.fields?.status?.statusCategory?.name === "Done";
-}
-
-function sprintLabelsFrom(labels = []) {
-if (!Array.isArray(labels)) return [];
-return labels.filter((l) => /^s\d+$/i.test(l)).map((l) => l.toLowerCase());
-}
+// isDone y sprintLabelsFrom se movieron VERBATIM a src/jira/fields.js para que
+// la capa de dominio use la misma definición y no exista una copia divergente.
+// Se importan al inicio de este archivo.
 
 // ===== Jira client with bounded retry =====
 async function jiraGetJson(url, { max429Retries = 2 } = {}) {

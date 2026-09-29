@@ -1,0 +1,26 @@
+# Arquitectos a seguir — F-00 / R-13, R-14 (Q-08, Q-09)
+#
+# Reglas:
+#   - `key` es `assignee.key` de Jira Data Center. Es la clave estable de
+#     agregación de TODAS las métricas.
+#   - `nombre` es lo único que se muestra en la interfaz. La key nunca se
+#     muestra al usuario (R-13).
+#   - Un assignee de Jira que no esté en esta lista queda fuera de la vista de
+#     equipo y no altera el promedio del equipo.
+#
+# No hay marca de líder: la regla propia/apoyo no tiene excepciones para el
+# líder (R-12 / Q-40). Si una épica sigue asignada al líder, sus sub-tasks
+# aparecen como apoyo, y eso señala que falta reasignarla.
+
+arquitectos:
+  - key: arq.ana
+    nombre: Ana Rivas
+
+  - key: arq.beto
+    nombre: Beto Luna
+
+  - key: arq.caro
+    nombre: Caro Díaz
+
+  - key: lider.max
+    nombre: Max Soto

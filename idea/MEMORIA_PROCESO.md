@@ -8,9 +8,27 @@
 
 ## 0. Estado en una línea
 
-`2026-09-28` — **Bloque A cerrado (22 preguntas) y Gherkin escrito.** `idea/03_requisitos_gherkin.md`
-contiene 20 reglas de negocio confirmadas, un juego de datos de referencia y 9 features con ~60
-escenarios. Listo para desarrollar. Pendiente menor: confirmar `Q-45`.
+`2026-09-28` — **F-00 y F-01 implementadas y probadas: 64 pruebas en verde.** Bloque A cerrado
+(22 preguntas), Gherkin escrito, y el núcleo del dominio ya funciona contra el juego de datos de
+referencia. Siguiente: **F-03** (compromiso y cumplimiento por arquitecto).
+Pendientes menores: confirmar `Q-45` y `Q-46`.
+
+### Código: qué existe y funciona
+
+| Archivo | Qué hace | Estado |
+|---|---|---|
+| `config/sprints.yaml` | Fechas de s1…s3 (R-08) | ✅ |
+| `config/team.yaml` | 4 arquitectos, key + nombre (R-14) | ✅ |
+| `src/dates.js` | Días hábiles, `parseFecha`, `diasHabilesTranscurridos` (R-09, R-16) | ✅ |
+| `src/config.js` | Carga y valida los YAML; `sprintPorId`, `sprintPorFecha`, `sprintSiguiente`, `esDelEquipo` | ✅ |
+| `src/jira/fields.js` | `isDone` y `sprintLabelsFrom`, movidas **verbatim** desde `server.js` | ✅ |
+| `src/domain/clasificacion.js` | **F-01 completa:** normalización, compromiso, cumplimiento, carry-over, no planificado, fuera de sprint, propia/apoyo | ✅ |
+| `test/fixtures/dataset.js` | El juego de datos de referencia en forma cruda de Jira | ✅ |
+| `test/*.test.js` | 64 pruebas con `node:test`, sin framework externo | ✅ 64/64 |
+
+Comandos: `npm test` · `npm start` (aún no arranca: D-01 pendiente).
+Dependencia nueva: `js-yaml` (se importa como `import { load } from "js-yaml"` — no tiene export
+`default` bajo el ESM de Node 26).
 
 ### Respuestas confirmadas del sponsor (2026-09-28)
 
@@ -31,7 +49,7 @@ escenarios. Listo para desarrollar. Pendiente menor: confirmar `Q-45`.
 | **Q-18 / Q-37 / Q-40** | Propia vs apoyo = `assignee(épica)` vs `assignee(sub-task)`. **Sin excepción para el líder**: si la épica sigue en el líder, sus sub-tasks son apoyo, y eso señala que falta reasignarla |
 | **Q-38 / Q-42** | Cycle time = **días hábiles desde el inicio del sprint** de compromiso hasta `resolutiondate` |
 | **Q-39** | Label de sprint no configurado → **se muestra con aviso**, sin burndown ni cycle time. Ni silencio ni fallo de arranque |
-| **Q-43** | Cumplimiento **por fecha**: se acredita al sprint cuyo rango contiene `resolutiondate`. Lo resuelto fuera de todo rango va a la bolsa visible **"fuera de sprint"** |
+| **Q-43 / Q-46** | Cumplimiento **por fecha**: se acredita al sprint cuyo rango contiene `resolutiondate`, **siempre que ese sprint estuviera comprometido**. Lo que no se pueda acreditar va a la bolsa visible **"fuera de sprint"**. El trabajo no planificado se atribuye por pura fecha |
 | **Q-44** | Burndown = curva real + **línea ideal** + **curva de promedio histórico** del equipo |
 | **Q-34** | Esta fase es **documental**: primero el Gherkin, después reparar la PoC y desarrollar |
 
@@ -86,15 +104,17 @@ Detalle completo en `idea/00_hallazgos_codigo.md`. Resumen para reentrada rápid
 **Estable y reutilizable — capa de cliente Jira (`server.js`), NO TOCAR:**
 `authHeader` (Bearer PAT → Jira **Data Center**, no Cloud) · `parseRetryAfterMs` · `jiraGetJson`
 (retry 429 acotado) · `loadFieldMetadataOnce` (descubre el customfield `Epic Link`) ·
-`jiraSearchPaginated` (paginado + throttle) · `fetchParents` (lotes de 40) · `isDone`
-(`statusCategory === "Done"`) · `sprintLabelsFrom` (`/^s\d+$/i`).
+`jiraSearchPaginated` (paginado + throttle) · `fetchParents` (lotes de 40).
+
+`isDone` (`statusCategory === "Done"`) y `sprintLabelsFrom` (`/^s\d+$/i`) se movieron **verbatim**
+a `src/jira/fields.js`; `server.js` las importa. Mismo comportamiento, una sola copia.
 
 **Defectos bloqueantes:**
 
 | ID | Dónde | Qué |
 |---|---|---|
 | D-01 | `server.js:206` | Archivo **truncado** a mitad de `buildMetaFromIssues`. No existen `/api/meta`, `/api/dashboard` ni `app.listen()`. El servidor no arranca |
-| D-02 | `public/app.js:410` | ``` `` ``` residual → `SyntaxError`, el frontend no renderiza |
+| D-02 | `public/app.js:410` | ``` `` ``` residual → `SyntaxError`, el frontend no renderiza. **Sigue pendiente** |
 | D-03 | `server.js:20` | `rejectUnauthorized: false` — validación TLS desactivada |
 | D-04 | `server.js:139` | Techo silencioso de 250 issues (`maxPages 5 × pageSize 50`) |
 
@@ -128,7 +148,7 @@ Detalle completo en `idea/00_hallazgos_codigo.md`. Resumen para reentrada rápid
 [4] Registrar preguntas abiertas      ✅ 02_preguntas_abiertas.md
 [5] Responder bloque A                ✅ 22/22 cerradas en 4 rondas
 [6] Escribir 03_requisitos_gherkin.md ✅ v1.0
-[7] DESARROLLAR                       ⬅️  AQUÍ ESTAMOS
+[7] DESARROLLAR                       🔄  F-00 ✅  F-01 ✅  <- siguiente: F-03
 [8] Cerrar brief (bloque B)           ⬜  en paralelo, no bloquea el desarrollo
 ```
 
@@ -150,6 +170,7 @@ En el camino: reparar **D-01** (`server.js` truncado), **D-02** (`public/app.js:
 | ID | Pregunta | Efecto |
 |---|---|---|
 | **Q-45** | ¿La curva de promedio histórico del burndown se normaliza a porcentaje del total comprometido de cada sprint (definición propuesta en F-02), o es valor absoluto / últimos N sprints? | Afecta a una curva de referencia, a ninguna métrica |
+| **Q-46** | Una sub-task planificada resuelta dentro del rango de un sprint que nunca comprometió: ¿fuera de sprint (implementado) o acreditada a ese sprint? | Ya decidida por invariante aritmético e implementada; sólo falta que el sponsor la confirme |
 | **Bloque B** (10) | Sponsor, usuarios, cuantificación del dolor, nombre, timeline, política de métricas individuales, componente de AI | Necesarias para **presentar** el brief, no para construir |
 | **Bloque C** (6) | Proyectos de Jira, variantes del label, volumen real, despliegue, certificado corporativo, token, persistencia | Necesarias antes de **ejecutar contra el Jira real** |
 
@@ -169,6 +190,10 @@ En el camino: reparar **D-01** (`server.js` truncado), **D-02** (`public/app.js:
 | 2026-09-28 | Sin excepción para el líder en la regla propia/apoyo (Q-40) | Decisión del sponsor: el dashboard refleja Jira tal cual. Una épica sin reasignar aparece como apoyo, y eso **es** la señal de que falta higienizar Jira. Evita una regla especial que habría que mantener |
 | 2026-09-28 | Añadir **F-08 (integridad del dato)**, que no corresponde a ningún objetivo del sponsor | D-04 mostró que el truncamiento hoy es silencioso. Una métrica de desempeño que miente es peor que no tenerla |
 | 2026-09-28 | Juego de datos de referencia único para todos los escenarios | 9 sub-tasks construidas para ejercitar cada regla y cada borde. Sirve directamente como fixture de pruebas |
+| 2026-09-28 | Pruebas con `node:test`, sin framework externo | El proyecto no tenía pruebas ni framework. `node:test` viene en Node 18+ y evita añadir dependencias de desarrollo a un PoC |
+| 2026-09-28 | `isDone` y `sprintLabelsFrom` se movieron **verbatim** a `src/jira/fields.js` y `server.js` las importa | El dominio las necesita. Dejar dos copias garantizaba una divergencia futura. El comportamiento es idéntico al de la versión declarada estable: es un movimiento, no un cambio |
+| 2026-09-28 | Q-46: una sub-task planificada resuelta en un sprint que nunca comprometió **no** se le acredita | Acreditarla haría que ese sprint tuviera más cumplidas que comprometidas y su cumplimiento pasara del 100 %. No es preferencia: es la única lectura aritméticamente posible. Cubierto por una prueba de invariante |
+| 2026-09-28 | La clasificación reporta `motivoSinIniciativa` en lugar de forzar propia/apoyo | Q-37 dice que una épica sin responsable no debería existir. Si aparece, el dashboard debe hacer visible el hueco, no inventar una atribución |
 
 ---
 
@@ -211,3 +236,4 @@ Al retomar:
 | 2026-09-28 | Primera ronda de preguntas al sponsor. Cerradas Q-01, Q-02, Q-14, Q-18. Abiertas Q-35, Q-36, Q-37 como consecuencia. `Q-04` reclasificada a prioridad 1 | fabian + Claude Code |
 | 2026-09-28 | Rondas 2, 3 y 4. Cerradas Q-03, Q-04, Q-05, Q-08, Q-09, Q-10, Q-11, Q-12, Q-15, Q-16, Q-35…Q-44. **Bloque A cerrado: 22/22** | fabian + Claude Code |
 | 2026-09-28 | Escrito `idea/03_requisitos_gherkin.md` v1.0: 20 reglas, juego de datos de 9 sub-tasks, 9 features, ~60 escenarios, matriz de trazabilidad objetivo→feature→pregunta. Abierta `Q-45` (no bloqueante) | fabian + Claude Code |
+| 2026-09-28 | Implementadas **F-00** y **F-01** con 64 pruebas en `node:test`. Creados `config/*.yaml`, `src/dates.js`, `src/config.js`, `src/jira/fields.js`, `src/domain/clasificacion.js`, `test/`. Eliminada la duplicación de `isDone`/`sprintLabelsFrom` entre `server.js` y el dominio. Detectada y resuelta una inconsistencia de la propia especificación → `Q-46` | fabian + Claude Code |
